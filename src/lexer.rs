@@ -1,9 +1,10 @@
-use crate::grammar::{LT_ARRAY_END, LT_ARRAY_START, LT_BOOLEAN, LT_COLON, LT_COMMA, LT_EXPONENT, LT_FRACTION_SYMBOL, LT_NULL, LT_OBJECT_END, LT_OBJECT_START, LT_SIGN};
+use crate::grammar::{LT_ARRAY_END, LT_ARRAY_START, LT_BOOLEAN, LT_COLON, LT_COMMA, LT_DIGITS, LT_EXPONENT, LT_FRACTION_SYMBOL, LT_NULL, LT_OBJECT_END, LT_OBJECT_START, LT_SIGN, LT_STRING};
 
 use crate::grammar::ElementType;
 use std::collections::HashMap;
 #[derive(Debug)]
 enum TokenError {
+    StringLexFailure(String),
     UnrecognizedTokenError
 }
 
@@ -53,7 +54,7 @@ fn lex(input: &str) -> Result<Vec<Token>, TokenError> {
                 i += 1;
             }
             b'"' => {
-                let (token, offset) = match lex_string(input, i) { //TODO
+                let (token, offset) = match lex_string(input, i) {
                     Ok((token, offset)) => (token, offset),
                     Err(err) => {
                         panic!("Failed to lex string: {:?}", err);
@@ -105,12 +106,7 @@ fn lex(input: &str) -> Result<Vec<Token>, TokenError> {
             }
 
             _ if is_digit(ch) => {
-                let (token, offset) = match lex_digit(input, i) {//TODO
-                    Ok((token, offset)) => (token, offset),
-                    Err(err) => {
-                        panic!("Failed to lex string: {:?}", err);
-                    }
-                };
+                let (token, offset) = lex_digits(input, i);
                 tokens.push(token);
                 i += offset;
             }
@@ -125,4 +121,61 @@ fn lex(input: &str) -> Result<Vec<Token>, TokenError> {
     }
 
     Ok(tokens)
+}
+
+fn lex_digits(input: &str, mut i: usize) -> (Token, usize) {
+    let mut str = String::new();
+    let bytes = input.as_bytes();
+
+    while i < bytes.len() && is_digit(bytes[i]) {
+        str.push(bytes[i] as char);
+        i += 1;
+    }
+
+    (
+        Token {
+            token_type: LT_DIGITS,
+            value: Box::new(str.clone()),
+        },
+        str.len(),
+    )
+}
+
+fn lex_string(input: &str, mut i: usize) -> Result<(Token, usize), TokenError> {
+    i += 1; // Move past the opening quote
+    let mut sb = String::new();
+    let bytes = input.as_bytes();
+
+    while i < bytes.len() && bytes[i] != b'"' {
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            // Handle escape sequence
+            i += 1;
+            match bytes[i] {
+                b'"' | b'\\' => sb.push(bytes[i] as char),
+                b'n' => sb.push('\n'),
+                b't' => sb.push('\t'),
+                b'r' => sb.push('\r'),
+                _ => {
+                    return Err(TokenError::StringLexFailure(format!("Invalid escape sequence at position {}", i)));
+                }
+            }
+        } else {
+            sb.push(bytes[i] as char);
+        }
+        i += 1;
+    }
+
+    if i >= bytes.len() || bytes[i] != b'"' {
+        return Err(TokenError::StringLexFailure("String is not properly closed".to_string()));
+    }
+
+    i += 1; // Move past the closing quote
+
+    Ok((
+        Token {
+            token_type: LT_STRING,
+            value: Box::new(sb),
+        },
+        i,
+    ))
 }
