@@ -1,3 +1,5 @@
+use std::any::Any;
+use crate::lexer::Token;
 
 pub type ElementType<'a> = &'a str;
 
@@ -13,7 +15,7 @@ pub const OBJECT:ElementType = "<object>";
 pub const BOOLEAN:ElementType = "<boolean>";
 pub const EXPONENT:ElementType = "<exponent>";
 pub const FRACTION:ElementType = "<fraction>";
-//literal tokens
+ //literal tokens
 pub const LT_OBJECT_START:ElementType = "{";
 pub const LT_OBJECT_END:ElementType = "}";
 pub const LT_ARRAY_START:ElementType = "[";
@@ -120,3 +122,34 @@ pub static GRAMMAR: [GrammarRule; 12] = [
         ],
     },
 ];
+
+#[derive(Debug)]
+pub struct JsonElement<'a> {
+    pub value: Box<dyn Any>,
+    pub element_type: ElementType<'a>,
+}
+
+impl<'a> JsonElement<'a> {
+    pub fn new<T: 'static>(value: T, element_type: ElementType<'a>) -> Self {
+        JsonElement {
+            value: Box::new(value),
+            element_type,
+        }
+    }
+
+    pub fn as_any(&self) -> &dyn Any {
+        &*self.value
+    }
+}
+
+#[derive(Debug)]
+pub struct StackElement<'a> {
+    pub value: Option<Token<'a>>,
+    pub rule: Option<JsonElement<'a>>,
+}
+
+impl<'a> StackElement<'a> {
+    pub fn new(value: Option<Token<'a>>, rule: Option<JsonElement<'a>>) -> Self {
+        StackElement { value, rule }
+    }
+}

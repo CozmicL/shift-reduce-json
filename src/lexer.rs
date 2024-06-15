@@ -2,15 +2,33 @@ use crate::grammar::{LT_ARRAY_END, LT_ARRAY_START, LT_BOOLEAN, LT_COLON, LT_COMM
 
 use crate::grammar::ElementType;
 use std::collections::HashMap;
+
+use std::any::Any;
+use std::fmt;
 #[derive(Debug)]
-enum TokenError {
+pub enum TokenError {
     StringLexFailure(String),
     UnrecognizedTokenError
 }
 
-struct Token<'a> {
-    value: Box<dyn std::any::Any>,
-    token_type: ElementType<'a>,
+pub struct Token<'a> {
+    pub value: Box<dyn Any>,
+    pub token_type: ElementType<'a>,
+}
+
+impl<'a> fmt::Debug for Token<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(value) = self.value.downcast_ref::<i32>() {
+            write!(f, "Token {{ value: {:?}, token_type: {:?} }}", value, self.token_type)
+        } else if let Some(value) = self.value.downcast_ref::<f64>() {
+            write!(f, "Token {{ value: {:?}, token_type: {:?} }}", value, self.token_type)
+        } else if let Some(value) = self.value.downcast_ref::<String>() {
+            write!(f, "Token {{ value: {:?}, token_type: {:?} }}", value, self.token_type)
+        } else {
+            // If downcasting fails, fallback to a generic debug output.
+            write!(f, "Token {{ value: nil, token_type: {:?} }}", self.token_type)
+        }
+    }
 }
 
 fn is_whitespace(ch: u8) -> bool {
@@ -34,7 +52,7 @@ fn init_special_symbols<'a>() -> HashMap<u8, ElementType<'a>> {
 }
 
 
-fn lex(input: &str) -> Result<Vec<Token>, TokenError> {
+pub fn lex(input: &str) -> Result<Vec<Token>, TokenError> {
     let special_symbols = init_special_symbols();
     let mut tokens = Vec::new();
     let chars: Vec<u8> = input.bytes().collect();
@@ -118,6 +136,7 @@ fn lex(input: &str) -> Result<Vec<Token>, TokenError> {
                 return Err(TokenError::UnrecognizedTokenError);
             }
         }
+        
     }
 
     Ok(tokens)
