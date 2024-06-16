@@ -1,78 +1,75 @@
-use crate::unmarshal::JsonValue;
-use crate::lexer::lex;
-use crate::grammar::{StackElement,ElementType};
-use crate::util::{check_prefix_exists,get_value, NOMATCH, PARTIALMATCH};
+use crate::unmarshal::{JsonValue,JsonValueType};
+use crate::lexer::{lex, Token};
+use crate::grammar::{StackElement, ElementType};
+use crate::util::{check_prefix_exists, get_value, NOMATCH, PARTIALMATCH};
+
+use crate::action::action;
 
 #[derive(Debug)]
 enum ParseError<'a> {
     LexingError,
     ParsingError,
-    UnexpectedToken(ElementType<'a>)
+    UnexpectedToken(ElementType<'a>),
 }
 
-
-
-fn parse(input: &str) -> Result<JsonValue,ParseError> {
+fn parse(input: &str) -> Result<JsonValue, ParseError> {
     let tokens = match lex(input) {
         Ok(token) => token,
-        Err(e) => return Err(ParseError::LexingError)
+        Err(_) => return Err(ParseError::LexingError),
     };
 
-    let stack : Vec<StackElement>;
+    let mut stack: Vec<StackElement> = Vec::new();
+    let mut reduced_performed = true;
 
-    let size = tokens.len();
-
-    let reduced_performed = true;
-
-    for i in 0..size{
+    for i in 0..tokens.len() {
         let lookahead = &tokens[i];
-        let match_type = check_prefix_exists(stack,*lookahead);
-        
-        if match_type != NOMATCH{
-           i+=1;
-           stack.push(StackElement::new(Some(*lookahead), None));
-           if match_type == PARTIALMATCH{
+        let match_type = check_prefix_exists(stack, *lookahead);
+
+        if match_type != NOMATCH {
+            let next_index = i + 1;
+            stack.push(StackElement::new(Some(lookahead), None));
+            if match_type == PARTIALMATCH {
+                i = next_index;
                 continue;
-           }
-        } else if !reduced_performed{
+            }
+        } else if !reduced_performed {
             return Err(ParseError::UnexpectedToken(lookahead.token_type));
         }
 
-        let (jsonElement,offset) = action(stack);// TODO
+        let (json_element, offset) = action(stack); 
 
         if offset != 0 {
-            stack.truncate(stack.len() - offset);
-            stack.push(StackElement{
+            stack.truncate(stack.len() - offset as usize);
+            stack.push(StackElement {
                 value: None,
-                rule: jsonElement,
+                rule: Some(json_element),
             });
             reduced_performed = true;
-        }else {
+        } else {
             reduced_performed = false;
         }
     }
 
-    loop{
-        let (jsonElement,offset) = action(stack);// TODO
+    loop {
+        let (json_element, offset) = action(stack); 
 
         if offset != 0 {
-            stack.truncate(stack.len() - offset);
-            stack.push(StackElement{
+            stack.truncate(stack.len() - offset as usize);
+            stack.push(StackElement {
                 value: None,
-                rule: jsonElement,
+                rule: Some(json_element),
             });
-        }else {
+        } else {
             break;
         }
     }
 
-    if stack.len() != 1{
+    if stack.len() != 1 {
         return Err(ParseError::ParsingError);
     }
 
     let val = get_value(stack);
 
-    
-
     Ok(JsonValue::new(val, "nil"))
 }
+
