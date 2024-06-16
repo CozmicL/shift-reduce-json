@@ -1,4 +1,5 @@
 use std::any::Any;
+use crate::{lexer::Token, unmarshal::{JsonValue, JsonValueType}};
 
 pub type ElementType<'a> = &'a str;
 
@@ -33,7 +34,7 @@ pub const LT_STRING: ElementType = "<string_literal>";
 pub struct GrammarRule<'a> {
     pub lhs: ElementType<'a>,
     pub rhs: &'a [&'a [&'a str]],
-    pub to_json: fn(&[StackElement<'a>]) -> JsonValue,
+    pub to_json: fn(&[StackElement<'a>]) -> JsonValue<'a>,
 }
 
 #[derive(Debug)]
@@ -42,206 +43,74 @@ pub struct JsonElement<'a> {
     pub element_type: ElementType<'a>,
 }
 
-impl<'a> JsonElement<'a> {
-    pub fn new<T: 'static>(value: T, element_type: ElementType<'a>) -> Self {
-        JsonElement {
-            value: Box::new(value),
-            element_type,
-        }
-    }
-
-    pub fn as_any(&self) -> &dyn Any {
-        &*self.value
+impl<'a> AsRef<JsonElement<'a>> for JsonElement<'a> {
+    fn as_ref(&self) -> &JsonElement<'a> {
+        self
     }
 }
+
+impl<'a> JsonElement<'a> {
+    pub fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+
 
 #[derive(Debug)]
 pub struct StackElement<'a> {
-    pub value: Option<&'a str>,
+    pub value: Option<&'a Token<'a>>,
     pub rule: Option<JsonElement<'a>>,
 }
 
-impl<'a> StackElement<'a> {
-    pub fn new(value: Option<&'a str>, rule: Option<JsonElement<'a>>) -> Self {
-        StackElement { value, rule }
-    }
 
-    pub fn value(&self) -> &dyn Any {
-        self.value.as_ref().unwrap() as &dyn Any
-    }
 
-    pub fn as_json_value(&self) -> JsonValue {
-        if let Some(rule) = &self.rule {
-            match rule.element_type {
-                LT_STRING => JsonValue::new(rule.as_any().downcast_ref::<String>().unwrap().clone(), JsonValueType::STRING),
-                LT_BOOLEAN => JsonValue::new(rule.as_any().downcast_ref::<bool>().unwrap().clone(), JsonValueType::BOOL),
-                LT_NULL => JsonValue::new("null".to_string(), JsonValueType::NULL),
-                OBJECT => JsonValue::new(rule.as_any().downcast_ref::<Vec<(&str, JsonValue)>>().unwrap().clone(), JsonValueType::OBJECT),
-                ARRAY => JsonValue::new(rule.as_any().downcast_ref::<Vec<JsonValue>>().unwrap().clone(), JsonValueType::ARRAY),
-                _ => JsonValue::new("".to_string(), JsonValueType::STRING), // Handle other types appropriately
-            }
-        } else {
-            JsonValue::new(self.value.unwrap().to_string(), JsonValueType::STRING)
-        }
-    }
+fn value_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
+
 }
 
-#[derive(Debug)]
-pub struct Token<'a> {
-    pub value: &'a str,
+fn boolean_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
+
 }
 
-impl<'a> Token<'a> {
-    pub fn value(&self) -> &str {
-        self.value
-    }
+fn object_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    pub fn to_string(&self) -> String {
-        self.value.to_string()
-    }
-}
-
-#[derive(Debug)]
-pub enum JsonValueType {
-    STRING,
-    NULL,
-    BOOL,
-    OBJECT,
-    ARRAY,
-    NUMBER,
-}
-
-#[derive(Debug)]
-pub struct JsonValue {
-    pub value: Box<dyn Any>,
-    pub value_type: JsonValueType,
-}
-
-impl JsonValue {
-    pub fn new<T: 'static>(value: T, element_type: JsonValueType) -> Self {
-        JsonValue {
-            value: Box::new(value),
-            value_type: element_type,
-        }
-    }
-
-    pub fn as_any(&self) -> &dyn Any {
-        &*self.value
-    }
-}
-
-fn value_rule(values: &[StackElement]) -> JsonValue {
-    let v = values[0].value();
-    if let Some(str_val) = v.downcast_ref::<&str>() {
-        return JsonValue::new(str_val.to_string(), JsonValueType::STRING);
-    } else if v.downcast_ref::<()>().is_some() {
-        return JsonValue::new("null".to_string(), JsonValueType::NULL);
-    }
-    values[0].as_json_value()
-}
-
-fn boolean_rule(values: &[StackElement]) -> JsonValue {
-    let b = values[0].value().downcast_ref::<&str>().unwrap() == &"true";
-    JsonValue::new(b, JsonValueType::BOOL)
-}
-
-fn object_rule(values: &[StackElement]) -> JsonValue {
-    if values.len() == 2 {
-        JsonValue::new::<Vec<(&str, JsonValue)>>(vec![], JsonValueType::OBJECT)
-    } else {
-        values[1].as_json_value()
-    }
 }
 
 
-fn members_rule(values: &[StackElement]) -> JsonValue {
-    let size = values.len();
-    let mut members = vec![];
-    let member = values[size - 1].as_json_value().as_any().downcast_ref::<Vec<(&str, JsonValue)>>().unwrap().clone();
+fn members_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    if size == 3 {
-        members = *values[0].as_json_value().as_any().downcast_ref::<Vec<(&str, JsonValue)>>().unwrap().clone();
-    }
-
-    members.extend(*member);
-
-    JsonValue::new(members, JsonValueType::OBJECT)
 }
 
-fn member_rule(values: &[StackElement]) -> JsonValue {
-    let key = values[0].value().downcast_ref::<&str>().unwrap();
-    let value_obj = values[2].as_json_value();
+fn member_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    JsonValue::new(vec![(key, value_obj)], JsonValueType::OBJECT)
 }
 
-fn array_rule(values: &[StackElement]) -> JsonValue {
-    if values.len() == 2 {
-        JsonValue::new::<Vec<JsonValue>>(vec![], JsonValueType::ARRAY)
-    } else {
-        values[1].as_json_value()
-    }
+fn array_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
+
 }
-fn elements_rule(values: &[StackElement]) -> JsonValue {
-    let size = values.len();
-    let mut elements = vec![];
-    if size == 3 {
-        elements = *values[0].as_json_value().as_any().downcast_ref::<Vec<JsonValue>>().unwrap().clone();
-    }
+fn elements_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    let element = values[size - 1].as_json_value();
-    elements.push(element);
-
-    JsonValue::new(elements, JsonValueType::ARRAY)
 }
 
-fn element_rule(values: &[StackElement]) -> JsonValue {
-    values[0].as_json_value()
+fn element_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
+
 }
 
-fn number_rule(values: &[StackElement]) -> JsonValue {
-    let size = values.len();
-    let integer_value = values[0].as_json_value().as_any().downcast_ref::<String>().unwrap();
+fn number_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    let fraction = if size >= 2 && values[1].as_json_value().as_any().downcast_ref::<String>().unwrap().starts_with('.') {
-        values[1].as_json_value().as_any().downcast_ref::<String>().unwrap().to_string()
-    } else {
-        "".to_string()
-    };
-
-    let exponent = if size == 2 && values[1].as_json_value().as_any().downcast_ref::<String>().unwrap().starts_with('e') {
-        values[1].as_json_value().as_any().downcast_ref::<String>().unwrap().to_string()
-    } else if size == 3 && values[2].as_json_value().as_any().downcast_ref::<String>().unwrap().starts_with('e') {
-        values[2].as_json_value().as_any().downcast_ref::<String>().unwrap().to_string()
-    } else {
-        "".to_string()
-    };
-
-    let expression = format!("{}{}{}", integer_value, fraction, exponent);
-    let value = expression.parse::<f64>().unwrap_or(0.0); // Handle parse error
-
-    JsonValue::new(value, JsonValueType::NUMBER)
 }
 
-fn integer_rule(values: &[StackElement]) -> JsonValue {
-    let size = values.len();
-    let digits = values[size - 1].value().downcast_ref::<&str>().unwrap();
-    let sign = if size == 2 { values[0].value().downcast_ref::<&str>().unwrap() } else { "+" };
+fn integer_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    let v = format!("{}{}", sign, digits);
-    JsonValue::new(v, JsonValueType::NUMBER)
 }
 
-fn fraction_rule(values: &[StackElement]) -> JsonValue {
-    let fraction_digits = format!(".{}", values[1].value().downcast_ref::<&str>().unwrap());
+fn fraction_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    JsonValue::new(fraction_digits, JsonValueType::NUMBER)
 }
 
-fn exponent_rule(values: &[StackElement]) -> JsonValue {
-    let exponent_expr = format!("e{}", values[1].as_json_value().as_any().downcast_ref::<String>().unwrap());
+fn exponent_rule<'a>(values: &[StackElement]) -> JsonValue<'a> {
 
-    JsonValue::new(exponent_expr, JsonValueType::NUMBER)
 }
 
 pub static GRAMMAR: [GrammarRule; 12] = [

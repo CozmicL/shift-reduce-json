@@ -17,7 +17,7 @@ pub fn action(stack: Vec<StackElement>) -> (JsonElement, i32) {
 
             if matches && size as i32 > offset {
                 je = Some(JsonElement {
-                    value: rule.to_json(&stack[stack.len() - size..]),
+                    value: Box::new((rule.to_json)(&stack[stack.len() - size..])),
                     element_type: rule.lhs.clone(),
                 });
                 offset = size as i32;
@@ -28,22 +28,22 @@ pub fn action(stack: Vec<StackElement>) -> (JsonElement, i32) {
     (je.unwrap(), offset)
 }
 
-fn top_n_of_stack<'a>(stack: &[StackElement], count: usize) -> Vec<ElementType<'a>> {
-    let count = count.min(stack.len());
+fn top_n_of_stack<'a>(stack: &[StackElement<'a>], count: usize) -> Vec<ElementType<'a>> {
     let slice = &stack[stack.len() - count..];
 
-    let mut elements = Vec::with_capacity(count);
+    let mut elements: Vec<ElementType<'a>>;
 
     for el in slice {
-        if let Some(token) = &el.value {
+        if let Some(token) = el.value {
             elements.push(token.token_type.clone());
-        } else if let Some(rule) = &el.rule {
+        } else if let Some(rule) = el.rule {
             elements.push(rule.element_type.clone());
         }
     }
 
     elements
 }
+
 
 fn compare<T: PartialEq>(expansion: &[T], actual: &[T]) -> bool {
     if expansion.len() != actual.len() {

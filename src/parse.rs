@@ -1,5 +1,5 @@
-use crate::unmarshal::{JsonValue,JsonValueType};
-use crate::lexer::{lex, Token};
+use crate::unmarshal::JsonValue;
+use crate::lexer::lex;
 use crate::grammar::{StackElement, ElementType};
 use crate::util::{check_prefix_exists, get_value, NOMATCH, PARTIALMATCH};
 
@@ -21,13 +21,16 @@ fn parse(input: &str) -> Result<JsonValue, ParseError> {
     let mut stack: Vec<StackElement> = Vec::new();
     let mut reduced_performed = true;
 
-    for i in 0..tokens.len() {
+    for mut i in 0..tokens.len() {
         let lookahead = &tokens[i];
         let match_type = check_prefix_exists(stack, *lookahead);
 
         if match_type != NOMATCH {
             let next_index = i + 1;
-            stack.push(StackElement::new(Some(lookahead), None));
+            stack.push(StackElement{
+                value: Some(lookahead),
+                rule: None
+            });
             if match_type == PARTIALMATCH {
                 i = next_index;
                 continue;

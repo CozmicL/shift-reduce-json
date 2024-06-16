@@ -23,17 +23,17 @@ fn get_values<'a>(stack: Vec<StackElement<'a>>) -> Result<Vec<JsonElement<'a>>, 
     }
 
     if let Some(rule) = &stack[0].rule {
-        if let Some(values) = rule.as_any().downcast_ref::<Vec<JsonElement>>() {
+        if let Some(values) = rule.as_ref().as_any().downcast_ref::<Vec<JsonElement<'a>>>() {
             if values.len() != 1 {
-                Err(ValueError::InvalidLength)
+                return Err(ValueError::InvalidLength);
             } else {
-                Ok(*values.clone())
+                return Ok(*values.clone());
             }
         } else {
-            Err(ValueError::InvalidType)
+            return Err(ValueError::InvalidType);
         }
     } else {
-        Err(ValueError::MissingRule)
+        return Err(ValueError::MissingRule);
     }
 }
 
