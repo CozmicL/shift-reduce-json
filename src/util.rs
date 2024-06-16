@@ -1,5 +1,7 @@
-use crate::grammar::{JsonElement,StackElement,ElementType};
+use crate::grammar::{JsonElement,StackElement,ElementType,GRAMMAR};
 use crate::lexer::Token;
+
+
 #[derive(Debug)]
 pub enum ValueError {
     EmptyStack,
@@ -62,7 +64,7 @@ fn stack_to_token<'a>(stack: &[StackElement<'a>]) -> Vec<&'a str> {
 }
 
 pub fn check_prefix_exists<'a>(stack: Vec<StackElement<'a>>,lookahead:Token) -> PrefixMatch{
-    let elems: Vec<ElementType>;
+    let mut elems: Vec<ElementType>;
 
     let stack_size = stack.len();
 
@@ -79,10 +81,67 @@ pub fn check_prefix_exists<'a>(stack: Vec<StackElement<'a>>,lookahead:Token) -> 
     let size = elems.len();
 
     for i in (0..size).rev(){
-        let match_type = check_prefix(elems[i..size]); //TODO
+        let match_type = check_prefix(&elems[i..size]); //TODO
         if match_type != NOMATCH{
             return match_type;
         }
     }
     return NOMATCH;
+}
+
+struct Payload{
+    match_type: u8,
+    prod_size: i32,
+}
+
+fn check_prefix(candidates:&[&str]) -> PrefixMatch{
+    let mut data: Vec<Payload> = Vec::new();
+
+    for rule in &GRAMMAR{
+        for production in rule.rhs{
+            let csize = candidates.len();
+            let rsize = production.len();
+
+            if csize > rsize{
+                continue;
+            }
+
+            let mut did_not_match = false;
+
+            for i in 0..csize{
+                if candidates[i] != production[i]{
+                    did_not_match = true;
+                    break;
+                }
+            }
+
+            if did_not_match{
+                continue;
+            }
+
+            let p:Payload;
+
+            if csize == rsize {
+                p = Payload{
+                    match_type: FULLMATCH,
+                    prod_size: rsize as i32,
+                };
+            }else{
+                p = Payload{
+                    match_type: PARTIALMATCH,
+                    prod_size: rsize as i32,
+                };
+            }
+
+            data.push(p);
+        }
+    }
+
+    if data.len() == 0 {
+        return NOMATCH;
+    }
+
+    data.sort_by(|a, b| b.prod_size.cmp(&a.prod_size));
+
+    return data[0].match_type;
 }
